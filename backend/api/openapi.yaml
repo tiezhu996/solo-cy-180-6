@@ -8,7 +8,7 @@ servers:
 paths:
   /auth/register:
     post:
-      summary: 用户注册
+      summary: 用户注册（公开注册一律成为采访员，角色调整仅管理员可操作）
       tags: [auth]
       requestBody:
         content:
@@ -20,9 +20,8 @@ paths:
                 password: { type: string }
                 display_name: { type: string }
                 email: { type: string }
-                role: { type: string, enum: [admin, interviewer, archivist] }
       responses:
-        '200': { description: 注册成功 }
+        '200': { description: 注册成功，角色固定为 interviewer }
   /auth/login:
     post:
       summary: 用户登录
@@ -108,6 +107,12 @@ paths:
       security: [{ BearerAuth: [] }]
   /users:
     get: { summary: 用户列表（仅管理员）, tags: [users], security: [{ BearerAuth: [] }] }
+  /users/{id}/role:
+    put: { summary: 调整用户角色（仅管理员）, tags: [users], security: [{ BearerAuth: [] }] }
+  /users/{id}:
+    delete: { summary: 删除用户（仅管理员，管理员账号不可删）, tags: [users], security: [{ BearerAuth: [] }] }
+  /recordings/{id}/summary:
+    put: { summary: 更新录音一句话摘要（仅档案员/管理员）, tags: [recordings], security: [{ BearerAuth: [] }] }
 components:
   securitySchemes:
     BearerAuth:

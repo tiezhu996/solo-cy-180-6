@@ -1,10 +1,10 @@
 package dto
 
-// CreateTimelineMarkerRequest 标注时间轴节点请求。
+// CreateTimelineMarkerRequest 标注时间轴节点请求。timestamp_second 允许为 0（节点位于片段开头）。
 type CreateTimelineMarkerRequest struct {
 	ProjectID       uint   `json:"project_id" binding:"required"`
 	RecordingID     uint   `json:"recording_id" binding:"required"`
-	TimestampSecond int    `json:"timestamp_second" binding:"required,min=0"`
+	TimestampSecond int    `json:"timestamp_second" binding:"min=0"`
 	Label           string `json:"label" binding:"required,min=1,max=128"`
 	Note            string `json:"note" binding:"omitempty,max=512"`
 }

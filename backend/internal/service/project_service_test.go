@@ -73,7 +73,7 @@ func TestProjectServiceTransitionStatus(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeProjectRepo{projects: map[uint]*model.Project{
-				1: {ID: 1, Title: "测试项目", Status: tc.from},
+				1: {ID: 1, Title: "测试项目", Status: tc.from, CreatedBy: actor.ID},
 			}}
 			svc := NewProjectService(repo, slog.Default())
 			got, err := svc.TransitionStatus(actor, 1, tc.to)
@@ -101,25 +101,96 @@ func TestProjectServiceTransitionStatus(t *testing.T) {
 }
 
 func TestProjectServiceCreate(t *testing.T) {
-	repo := &fakeProjectRepo{projects: map[uint]*model.Project{}}
-	svc := NewProjectService(repo, slog.Default())
-	actor := &model.User{ID: 2, Username: "archivist", Role: constants.RoleArchivist}
-	req := &dto.CreateProjectRequest{
-		Title:           "老城记忆",
-		IntervieweeName: "王奶奶",
-		BirthYear:       1938,
-		Background:      "纺织厂退休工人",
+	t.Run("interviewer can create", func(t *testing.T) {
+		repo := &fakeProjectRepo{projects: map[uint]*model.Project{}}
+		svc := NewProjectService(repo, slog.Default())
+		actor := &model.User{ID: 2, Username: "interviewer", Role: constants.RoleInterviewer}
+		req := &dto.CreateProjectRequest{
+			Title:           "老城记忆",
+			IntervieweeName: "王奶奶",
+			BirthYear:       1938,
+			Background:      "纺织厂退休工人",
+		}
+		project, err := svc.Create(actor, req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if project.Status != constants.ProjectStatusDraft {
+			t.Fatalf("default status = %s, want draft", project.Status)
+		}
+		if project.CreatedBy != actor.ID {
+			t.Fatalf("created_by = %d, want %d", project.CreatedBy, actor.ID)
+		}
+	})
+
+	t.Run("archivist cannot create", func(t *testing.T) {
+		repo := &fakeProjectRepo{projects: map[uint]*model.Project{}}
+		svc := NewProjectService(repo, slog.Default())
+		actor := &model.User{ID: 3, Username: "archivist", Role: constants.RoleArchivist}
+		req := &dto.CreateProjectRequest{Title: "越权项目", IntervieweeName: "张三", BirthYear: 1950}
+		if _, err := svc.Create(actor, req); err == nil {
+			t.Fatalf("expected forbidden error, got nil")
+		} else {
+			var appErr *util.AppError
+			if !asAppError(err, &appErr) || appErr.Code != constants.CodeForbidden {
+				t.Fatalf("expected 40300 app error, got %v", err)
+			}
+		}
+	})
+}
+
+func TestProjectServiceUpdateGuards(t *testing.T) {
+	owner := &model.User{ID: 1, Username: "owner", Role: constants.RoleInterviewer}
+	other := &model.User{ID: 2, Username: "other", Role: constants.RoleInterviewer}
+	archivist := &model.User{ID: 3, Username: "archivist", Role: constants.RoleArchivist}
+	admin := &model.User{ID: 4, Username: "admin", Role: constants.RoleAdmin}
+
+	newSvc := func(status string) (ProjectService, *fakeProjectRepo) {
+		repo := &fakeProjectRepo{projects: map[uint]*model.Project{
+			1: {ID: 1, Title: "项目", Status: status, CreatedBy: owner.ID},
+		}}
+		return NewProjectService(repo, slog.Default()), repo
 	}
-	project, err := svc.Create(actor, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if project.Status != constants.ProjectStatusDraft {
-		t.Fatalf("default status = %s, want draft", project.Status)
-	}
-	if project.CreatedBy != actor.ID {
-		t.Fatalf("created_by = %d, want %d", project.CreatedBy, actor.ID)
-	}
+	req := &dto.UpdateProjectRequest{Title: "新标题"}
+
+	t.Run("other interviewer rejected", func(t *testing.T) {
+		svc, _ := newSvc(constants.ProjectStatusInProgress)
+		if _, err := svc.Update(other, 1, req); err == nil {
+			t.Fatalf("expected forbidden error")
+		}
+	})
+	t.Run("archivist role rejected", func(t *testing.T) {
+		svc, _ := newSvc(constants.ProjectStatusInProgress)
+		if _, err := svc.Update(archivist, 1, req); err == nil {
+			t.Fatalf("expected forbidden error")
+		}
+	})
+	t.Run("archived project write rejected", func(t *testing.T) {
+		svc, _ := newSvc(constants.ProjectStatusArchived)
+		if _, err := svc.Update(owner, 1, req); err == nil {
+			t.Fatalf("expected archived write rejection")
+		} else {
+			var appErr *util.AppError
+			if !asAppError(err, &appErr) || appErr.Code != constants.CodeProjectStatus {
+				t.Fatalf("expected 40902 app error, got %v", err)
+			}
+		}
+	})
+	t.Run("owner can update", func(t *testing.T) {
+		svc, repo := newSvc(constants.ProjectStatusInProgress)
+		if _, err := svc.Update(owner, 1, req); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if repo.updated.Title != "新标题" {
+			t.Fatalf("title not updated: %s", repo.updated.Title)
+		}
+	})
+	t.Run("admin can update others project", func(t *testing.T) {
+		svc, _ := newSvc(constants.ProjectStatusInProgress)
+		if _, err := svc.Update(admin, 1, req); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func asAppError(err error, target **util.AppError) bool {

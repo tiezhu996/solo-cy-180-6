@@ -38,17 +38,33 @@ func NewRecordingService(recordingRepo repository.RecordingRepository, projectRe
 }
 
 func (s *recordingService) Create(actor *model.User, req *dto.CreateRecordingRequest) (*model.Recording, error) {
-	if _, err := s.projectRepo.FindByID(req.ProjectID); err != nil {
+	project, err := s.projectRepo.FindByID(req.ProjectID)
+	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, util.NewAppError(constants.CodeNotFound, fmt.Sprintf("项目 %d 不存在", req.ProjectID), err)
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询项目 %d 失败", req.ProjectID), err)
 	}
-	if _, err := s.questionRepo.FindByID(req.QuestionID); err != nil {
+	if err := requireRoles(actor, constants.RoleInterviewer, constants.RoleAdmin); err != nil {
+		return nil, err
+	}
+	if err := requireProjectOwner(actor, project); err != nil {
+		return nil, err
+	}
+	if err := requireProjectWritable(project); err != nil {
+		return nil, err
+	}
+	question, err := s.questionRepo.FindByID(req.QuestionID)
+	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, util.NewAppError(constants.CodeNotFound, fmt.Sprintf("问题 %d 不存在", req.QuestionID), err)
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询问题 %d 失败", req.QuestionID), err)
+	}
+	// 录音必须落在本项目的问题上，禁止跨项目挂接。
+	if question.ProjectID != req.ProjectID {
+		return nil, util.NewAppError(constants.CodeBadRequest,
+			fmt.Sprintf("问题 %d 属于项目 %d，不能挂到项目 %d", req.QuestionID, question.ProjectID, req.ProjectID), nil)
 	}
 	recording := &model.Recording{
 		ProjectID:       req.ProjectID,
@@ -100,6 +116,9 @@ func (s *recordingService) Update(actor *model.User, id uint, req *dto.UpdateRec
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询录音 %d 失败", id), err)
 	}
+	if err := s.checkWritable(actor, recording.ProjectID); err != nil {
+		return nil, err
+	}
 	if req.DurationSeconds > 0 {
 		recording.DurationSeconds = req.DurationSeconds
 	}
@@ -124,12 +143,19 @@ func (s *recordingService) Update(actor *model.User, id uint, req *dto.UpdateRec
 }
 
 func (s *recordingService) UpdateSummary(actor *model.User, id uint, summary string) (*model.Recording, error) {
+	// 摘要整理由档案员负责。
+	if err := requireRoles(actor, constants.RoleArchivist, constants.RoleAdmin); err != nil {
+		return nil, err
+	}
 	recording, err := s.recordingRepo.FindByID(id)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, util.NewAppError(constants.CodeNotFound, fmt.Sprintf("录音 %d 不存在", id), err)
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询录音 %d 失败", id), err)
+	}
+	if err := s.checkArchived(recording.ProjectID); err != nil {
+		return nil, err
 	}
 	recording.Summary = summary
 	if err := s.recordingRepo.Update(recording); err != nil {
@@ -147,6 +173,9 @@ func (s *recordingService) AttachAudio(actor *model.User, id uint, audioKey stri
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询录音 %d 失败", id), err)
 	}
+	if err := s.checkWritable(actor, recording.ProjectID); err != nil {
+		return nil, err
+	}
 	recording.AudioKey = audioKey
 	if duration > 0 {
 		recording.DurationSeconds = duration
@@ -162,11 +191,15 @@ func (s *recordingService) AttachAudio(actor *model.User, id uint, audioKey stri
 }
 
 func (s *recordingService) Delete(actor *model.User, id uint) error {
-	if _, err := s.recordingRepo.FindByID(id); err != nil {
+	recording, err := s.recordingRepo.FindByID(id)
+	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return util.NewAppError(constants.CodeNotFound, fmt.Sprintf("录音 %d 不存在", id), err)
 		}
 		return util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询录音 %d 失败", id), err)
+	}
+	if err := s.checkWritable(actor, recording.ProjectID); err != nil {
+		return err
 	}
 	if err := s.recordingRepo.Delete(id); err != nil {
 		return util.NewAppError(constants.CodeInternal, fmt.Sprintf("删除录音 %d 失败", id), err)
@@ -177,4 +210,34 @@ func (s *recordingService) Delete(actor *model.User, id uint) error {
 
 func (s *recordingService) CountByProject(projectID uint) (int64, error) {
 	return s.recordingRepo.CountByProject(projectID)
+}
+
+// checkWritable 校验操作者有权向该项目写入录音（采访员负责人/管理员，且项目未归档）。
+func (s *recordingService) checkWritable(actor *model.User, projectID uint) error {
+	if err := requireRoles(actor, constants.RoleInterviewer, constants.RoleAdmin); err != nil {
+		return err
+	}
+	project, err := s.projectRepo.FindByID(projectID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return util.NewAppError(constants.CodeNotFound, fmt.Sprintf("项目 %d 不存在", projectID), err)
+		}
+		return util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询项目 %d 失败", projectID), err)
+	}
+	if err := requireProjectOwner(actor, project); err != nil {
+		return err
+	}
+	return requireProjectWritable(project)
+}
+
+// checkArchived 仅校验项目未归档（供档案员整理摘要时使用）。
+func (s *recordingService) checkArchived(projectID uint) error {
+	project, err := s.projectRepo.FindByID(projectID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return util.NewAppError(constants.CodeNotFound, fmt.Sprintf("项目 %d 不存在", projectID), err)
+		}
+		return util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询项目 %d 失败", projectID), err)
+	}
+	return requireProjectWritable(project)
 }

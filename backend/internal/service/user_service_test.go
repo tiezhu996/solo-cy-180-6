@@ -74,18 +74,6 @@ func TestUserServiceRegister(t *testing.T) {
 			wantRole: constants.RoleInterviewer,
 		},
 		{
-			name: "explicit archivist role",
-			repo: &fakeUserRepo{},
-			req:  &dto.RegisterRequest{Username: "bob", Password: "secret123", DisplayName: "Bob", Role: constants.RoleArchivist},
-			wantRole: constants.RoleArchivist,
-		},
-		{
-			name:    "invalid role rejected",
-			repo:    &fakeUserRepo{},
-			req:     &dto.RegisterRequest{Username: "eve", Password: "secret123", DisplayName: "Eve", Role: "root"},
-			wantErr: true,
-		},
-		{
 			name:    "duplicate username rejected",
 			repo:    &fakeUserRepo{users: []model.User{{Username: "alice"}}},
 			req:     &dto.RegisterRequest{Username: "alice", Password: "secret123", DisplayName: "Alice"},

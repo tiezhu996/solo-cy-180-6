@@ -9,7 +9,11 @@ import {
   PROJECT_STATUS_ARCHIVED,
   PROJECT_STATUS_COMPLETED,
   PROJECT_STATUS_IN_PROGRESS,
+  ROLE_ADMIN,
+  ROLE_ARCHIVIST,
+  ROLE_INTERVIEWER,
 } from '../../constants'
+import { useAuthStore } from '../../stores/authStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useQuestionStore } from '../../stores/questionStore'
 import { useRecordingStore } from '../../stores/recordingStore'
@@ -25,8 +29,15 @@ export default function ProjectDetailPage() {
   const { questions, fetchByProject, create: createQuestion, remove: removeQuestion } = useQuestionStore()
   const { recordings, fetchByProject: fetchRecordings } = useRecordingStore()
   const { markers, fetchByProject: fetchMarkers, create: createMarker } = useTimelineStore()
+  const { user, hasRole } = useAuthStore()
   const [newQuestion, setNewQuestion] = useState('')
   const [message, setMessage] = useState('')
+
+  const isOwner = !!user && !!detail && detail.created_by === user.id
+  const canEditOutline = hasRole(ROLE_ADMIN) || (hasRole(ROLE_INTERVIEWER) && isOwner)
+  const canArchive = hasRole(ROLE_ARCHIVIST, ROLE_ADMIN)
+  const canTransition = canArchive || (hasRole(ROLE_INTERVIEWER) && isOwner)
+  const isArchived = detail?.status === PROJECT_STATUS_ARCHIVED
 
   useEffect(() => {
     if (projectId) {
@@ -83,7 +94,7 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="row-actions" style={{ marginTop: 12 }}>
-          {detail.status !== PROJECT_STATUS_ARCHIVED && (
+          {!isArchived && canTransition && (
             <button
               className="btn btn-primary btn-small"
               onClick={async () => {
@@ -97,18 +108,32 @@ export default function ProjectDetailPage() {
               {detail.status === PROJECT_STATUS_IN_PROGRESS ? '标记为已完成' : '开始采访'}
             </button>
           )}
-          <ConfirmDialog
-            title="删除采访项目"
-            message="确定删除该项目吗？此操作不可恢复。"
-            danger
-            confirmText="删除"
-            onConfirm={async () => {
-              await remove(projectId)
-              navigate('/')
-            }}
-          >
-            <button className="btn btn-danger btn-small">删除项目</button>
-          </ConfirmDialog>
+          {!isArchived && canArchive && detail.status === PROJECT_STATUS_COMPLETED && (
+            <button
+              className="btn btn-plain btn-small"
+              onClick={async () => {
+                await transitionStatus(projectId, PROJECT_STATUS_ARCHIVED)
+                setMessage('项目已归档')
+                setTimeout(() => setMessage(''), 3000)
+              }}
+            >
+              归档项目
+            </button>
+          )}
+          {canEditOutline && (
+            <ConfirmDialog
+              title="删除采访项目"
+              message="确定删除该项目吗？此操作不可恢复。"
+              danger
+              confirmText="删除"
+              onConfirm={async () => {
+                await remove(projectId)
+                navigate('/')
+              }}
+            >
+              <button className="btn btn-danger btn-small">删除项目</button>
+            </ConfirmDialog>
+          )}
           <LinkToInterview projectId={projectId} />
         </div>
       </section>
@@ -123,25 +148,29 @@ export default function ProjectDetailPage() {
               <li key={q.id} className="question-item">
                 <span className="question-index">{q.sort_order + 1}</span>
                 <span className="question-content">{q.content}</span>
-                <ConfirmDialog
-                  title="删除采访问题"
-                  message="删除问题将同时删除其下的录音片段，确定继续？"
-                  danger
-                  confirmText="删除"
-                  onConfirm={() => removeQuestion(q.id)}
-                >
-                  <button className="btn btn-plain btn-small">删除</button>
-                </ConfirmDialog>
+                {canEditOutline && !isArchived && (
+                  <ConfirmDialog
+                    title="删除采访问题"
+                    message="删除问题将同时删除其下的录音片段，确定继续？"
+                    danger
+                    confirmText="删除"
+                    onConfirm={() => removeQuestion(q.id)}
+                  >
+                    <button className="btn btn-plain btn-small">删除</button>
+                  </ConfirmDialog>
+                )}
               </li>
             ))}
           </ul>
         )}
-        <div className="inline-form">
-          <input value={newQuestion} onChange={(e) => setNewQuestion(e.target.value)} placeholder="输入新的采访问题" />
-          <button className="btn btn-primary" onClick={handleAddQuestion} disabled={!newQuestion.trim()}>
-            添加问题
-          </button>
-        </div>
+        {canEditOutline && !isArchived && (
+          <div className="inline-form">
+            <input value={newQuestion} onChange={(e) => setNewQuestion(e.target.value)} placeholder="输入新的采访问题" />
+            <button className="btn btn-primary" onClick={handleAddQuestion} disabled={!newQuestion.trim()}>
+              添加问题
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="card">
@@ -151,7 +180,17 @@ export default function ProjectDetailPage() {
         ) : (
           <div className="timeline">
             {recordings.map((r) => (
-              <TimelineItem key={r.id} recording={r} markers={markersOf(r.id)} onCreateMarker={createMarker} />
+              <TimelineItem
+                key={r.id}
+                recording={r}
+                markers={markersOf(r.id)}
+                onCreateMarker={createMarker}
+                onSaveSummary={async (summary) => {
+                  await useRecordingStore.getState().updateSummary(r.id, summary)
+                  await fetchRecordings(projectId)
+                }}
+                canAnnotate={canArchive && !isArchived}
+              />
             ))}
           </div>
         )}
@@ -172,6 +211,8 @@ function TimelineItem({
   recording,
   markers,
   onCreateMarker,
+  onSaveSummary,
+  canAnnotate,
 }: {
   recording: Recording
   markers: TimelineMarker[]
@@ -182,8 +223,11 @@ function TimelineItem({
     label: string
     note?: string
   }) => Promise<void>
+  onSaveSummary: (summary: string) => Promise<void>
+  canAnnotate: boolean
 }) {
   const [label, setLabel] = useState('')
+  const [summaryDraft, setSummaryDraft] = useState('')
   const question = useQuestionStore((s) => s.questions.find((q) => q.id === recording.question_id))
 
   return (
@@ -200,6 +244,25 @@ function TimelineItem({
           <span className="summary-label">一句话摘要：</span>
           {recording.summary || <span className="muted">暂无摘要</span>}
         </div>
+        {canAnnotate && (
+          <div className="summary-edit">
+            <input
+              value={summaryDraft || recording.summary}
+              placeholder="写一句话摘要"
+              onChange={(e) => setSummaryDraft(e.target.value)}
+            />
+            <button
+              className="btn btn-plain btn-small"
+              disabled={!summaryDraft.trim()}
+              onClick={async () => {
+                await onSaveSummary(summaryDraft.trim())
+                setSummaryDraft('')
+              }}
+            >
+              保存摘要
+            </button>
+          </div>
+        )}
         {markers.length > 0 && (
           <div className="marker-list">
             {markers.map((m) => (
@@ -210,28 +273,30 @@ function TimelineItem({
             ))}
           </div>
         )}
-        <div className="inline-form">
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="标注关键节点，如：回忆童年故居"
-          />
-          <button
-            className="btn btn-plain btn-small"
-            disabled={!label.trim()}
-            onClick={async () => {
-              await onCreateMarker({
-                project_id: recording.project_id,
-                recording_id: recording.id,
-                timestamp_second: recording.duration_seconds > 0 ? Math.floor(recording.duration_seconds / 2) : 0,
-                label: label.trim(),
-              })
-              setLabel('')
-            }}
-          >
-            ＋ 标注节点
-          </button>
-        </div>
+        {canAnnotate && (
+          <div className="inline-form">
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="标注关键节点，如：回忆童年故居"
+            />
+            <button
+              className="btn btn-plain btn-small"
+              disabled={!label.trim()}
+              onClick={async () => {
+                await onCreateMarker({
+                  project_id: recording.project_id,
+                  recording_id: recording.id,
+                  timestamp_second: recording.duration_seconds > 0 ? Math.floor(recording.duration_seconds / 2) : 0,
+                  label: label.trim(),
+                })
+                setLabel('')
+              }}
+            >
+              ＋ 标注节点
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

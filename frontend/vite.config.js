@@ -15,4 +15,14 @@ export default defineConfig({
     build: {
         outDir: 'dist',
     },
+    preview: {
+        host: '0.0.0.0',
+        port: 8180,
+        proxy: {
+            '/api': {
+                target: process.env.VITE_PROXY_TARGET || 'http://localhost:9180',
+                changeOrigin: true,
+            },
+        },
+    },
 });

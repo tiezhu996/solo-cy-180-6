@@ -4,6 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import AudioPlayer from '../../components/AudioPlayer'
 import EmptyState from '../../components/EmptyState'
 import StatusBadge from '../../components/StatusBadge'
+import { ROLE_ADMIN, ROLE_ARCHIVIST, ROLE_INTERVIEWER } from '../../constants'
+import { useAuthStore } from '../../stores/authStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { useQuestionStore } from '../../stores/questionStore'
 import { useRecordingStore } from '../../stores/recordingStore'
@@ -16,6 +18,9 @@ export default function InterviewPage() {
   const { projects, fetchList } = useProjectStore()
   const { questions, fetchByProject } = useQuestionStore()
   const { fetchByProject: fetchRecordings } = useRecordingStore()
+  const { hasRole } = useAuthStore()
+  const canRecord = hasRole(ROLE_INTERVIEWER, ROLE_ADMIN)
+  const canAnnotate = hasRole(ROLE_ARCHIVIST, ROLE_ADMIN)
   const [activeQuestion, setActiveQuestion] = useState(0)
   const [message, setMessage] = useState('')
 
@@ -89,6 +94,8 @@ export default function InterviewPage() {
             <RecorderPanel
               projectId={selectedProject}
               questionId={activeQuestion}
+              canRecord={canRecord}
+              canAnnotate={canAnnotate}
               onRecorded={(summary) => {
                 fetchRecordings(selectedProject)
                 setMessage(summary)
@@ -105,10 +112,14 @@ export default function InterviewPage() {
 function RecorderPanel({
   projectId,
   questionId,
+  canRecord,
+  canAnnotate,
   onRecorded,
 }: {
   projectId: number
   questionId: number
+  canRecord: boolean
+  canAnnotate: boolean
   onRecorded: (msg: string) => void
 }) {
   const { create, uploadAudio, updateSummary, fetchByQuestion } = useRecordingStore()
@@ -121,6 +132,8 @@ function RecorderPanel({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<number | null>(null)
+  // onstop 回调在录音开始时创建，必须通过 ref 读取最新秒数，否则时长恒为 0。
+  const secondsRef = useRef(0)
 
   const reload = useCallback(async () => {
     setRecordings(await fetchByQuestion(questionId))
@@ -132,7 +145,10 @@ function RecorderPanel({
 
   useEffect(() => {
     if (recording) {
-      timerRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000)
+      timerRef.current = window.setInterval(() => {
+        secondsRef.current += 1
+        setSeconds(secondsRef.current)
+      }, 1000)
     } else if (timerRef.current) {
       window.clearInterval(timerRef.current)
       timerRef.current = null
@@ -153,11 +169,12 @@ function RecorderPanel({
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop())
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const duration = secondsRef.current
         setRecording(false)
         setUploading(1)
         try {
-          const created = await create({ project_id: projectId, question_id: questionId, duration_seconds: seconds })
-          await uploadAudio(created.id, blob, seconds, (p) => setUploading(p))
+          const created = await create({ project_id: projectId, question_id: questionId, duration_seconds: duration })
+          await uploadAudio(created.id, blob, duration, (p) => setUploading(p))
           await reload()
           onRecorded('录音上传成功，已自动关联到当前问题')
         } catch (e) {
@@ -169,6 +186,7 @@ function RecorderPanel({
       }
       mediaRecorderRef.current = recorder
       recorder.start()
+      secondsRef.current = 0
       setRecording(true)
       setSeconds(0)
     } catch {
@@ -194,7 +212,9 @@ function RecorderPanel({
     <section className="card">
       <div className="card-title">录音面板</div>
       <div className="recorder-box">
-        {uploading > 0 ? (
+        {!canRecord ? (
+          <div className="muted">当前角色仅可查看与整理，录音由采访员完成</div>
+        ) : uploading > 0 ? (
           <div className="upload-progress">
             上传中… {uploading}%
             <div className="progress-bar">
@@ -231,51 +251,55 @@ function RecorderPanel({
                 <span className="muted">{formatDuration(r.duration_seconds)}</span>
               </div>
               <AudioPlayer recordingId={r.id} durationSeconds={r.duration_seconds} />
-              <div className="summary-edit">
-                <input
-                  value={summaryDraft || r.summary}
-                  placeholder="写一句话摘要"
-                  onChange={(e) => setSummaryDraft(e.target.value)}
-                />
-                <button
-                  className="btn btn-plain btn-small"
-                  disabled={!summaryDraft.trim()}
-                  onClick={async () => {
-                    await updateSummary(r.id, summaryDraft.trim())
-                    setSummaryDraft('')
-                    reload()
-                  }}
-                >
-                  保存摘要
-                </button>
-              </div>
-              <div className="marker-actions">
-                <span className="muted">时间轴节点：</span>
-                {markers
-                  .filter((m) => m.recording_id === r.id)
-                  .map((m) => (
-                    <span key={m.id} className="marker-chip">
-                      {m.label}
-                    </span>
-                  ))}
-                <input
-                  placeholder="新增节点，如：讲到参军经历"
-                  style={{ maxWidth: 220 }}
-                  id={`marker-input-${r.id}`}
-                />
-                <button
-                  className="btn btn-plain btn-small"
-                  onClick={() => {
-                    const input = document.getElementById(`marker-input-${r.id}`) as HTMLInputElement
-                    if (input?.value.trim()) {
-                      addMarker(r.id, input.value.trim())
-                      input.value = ''
-                    }
-                  }}
-                >
-                  ＋ 标注
-                </button>
-              </div>
+              {canAnnotate && (
+                <div className="summary-edit">
+                  <input
+                    value={summaryDraft || r.summary}
+                    placeholder="写一句话摘要"
+                    onChange={(e) => setSummaryDraft(e.target.value)}
+                  />
+                  <button
+                    className="btn btn-plain btn-small"
+                    disabled={!summaryDraft.trim()}
+                    onClick={async () => {
+                      await updateSummary(r.id, summaryDraft.trim())
+                      setSummaryDraft('')
+                      reload()
+                    }}
+                  >
+                    保存摘要
+                  </button>
+                </div>
+              )}
+              {canAnnotate && (
+                <div className="marker-actions">
+                  <span className="muted">时间轴节点：</span>
+                  {markers
+                    .filter((m) => m.recording_id === r.id)
+                    .map((m) => (
+                      <span key={m.id} className="marker-chip">
+                        {m.label}
+                      </span>
+                    ))}
+                  <input
+                    placeholder="新增节点，如：讲到参军经历"
+                    style={{ maxWidth: 220 }}
+                    id={`marker-input-${r.id}`}
+                  />
+                  <button
+                    className="btn btn-plain btn-small"
+                    onClick={() => {
+                      const input = document.getElementById(`marker-input-${r.id}`) as HTMLInputElement
+                      if (input?.value.trim()) {
+                        addMarker(r.id, input.value.trim())
+                        input.value = ''
+                      }
+                    }}
+                  >
+                    ＋ 标注
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

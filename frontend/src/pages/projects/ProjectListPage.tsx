@@ -12,13 +12,20 @@ import {
   PROJECT_STATUS_DRAFT,
   PROJECT_STATUS_IN_PROGRESS,
   PROJECT_STATUS_OPTIONS,
+  ROLE_ADMIN,
+  ROLE_ARCHIVIST,
+  ROLE_INTERVIEWER,
 } from '../../constants'
+import { useAuthStore } from '../../stores/authStore'
 import { useProjectStore } from '../../stores/projectStore'
 import { formatDateTime } from '../../utils/format'
 import type { Project } from '../../api/types'
 
 export default function ProjectListPage() {
   const { projects, total, loading, fetchList, create, transitionStatus, remove } = useProjectStore()
+  const { user, hasRole } = useAuthStore()
+  const canCreate = hasRole(ROLE_INTERVIEWER, ROLE_ADMIN)
+  const canTransition = hasRole(ROLE_INTERVIEWER, ROLE_ADMIN, ROLE_ARCHIVIST)
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [message, setMessage] = useState('')
@@ -54,9 +61,11 @@ export default function ProjectListPage() {
     <div className="page">
       <div className="page-header">
         <h2>采访项目</h2>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          ＋ 新建采访项目
-        </button>
+        {canCreate && (
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            ＋ 新建采访项目
+          </button>
+        )}
       </div>
       {message && <div className="toast success">{message}</div>}
 
@@ -97,7 +106,7 @@ export default function ProjectListPage() {
                 <Link className="btn btn-plain btn-small" to={`/projects/${p.id}`}>
                   详情
                 </Link>
-                {p.status !== PROJECT_STATUS_ARCHIVED && (
+                {p.status !== PROJECT_STATUS_ARCHIVED && canTransition && (user?.role !== ROLE_INTERVIEWER || p.created_by === user?.id) && (
                   <button
                     className="btn btn-plain btn-small"
                     onClick={async () => {
@@ -109,19 +118,21 @@ export default function ProjectListPage() {
                     流转至{PROJECT_STATUS_OPTIONS.find((o) => o.value === nextStatus(p.status))?.label}
                   </button>
                 )}
-                <ConfirmDialog
-                  title="删除采访项目"
-                  message={`确定删除项目「${p.title}」吗？其问题、录音与时间轴节点将一并删除。`}
-                  confirmText="删除"
-                  danger
-                  onConfirm={async () => {
-                    await remove(p.id)
-                    setMessage('项目已删除')
-                    setTimeout(() => setMessage(''), 3000)
-                  }}
-                >
-                  <button className="btn btn-danger btn-small">删除</button>
-                </ConfirmDialog>
+                {canCreate && (user?.role !== ROLE_INTERVIEWER || p.created_by === user?.id) && (
+                  <ConfirmDialog
+                    title="删除采访项目"
+                    message={`确定删除项目「${p.title}」吗？其问题、录音与时间轴节点将一并删除。`}
+                    confirmText="删除"
+                    danger
+                    onConfirm={async () => {
+                      await remove(p.id)
+                      setMessage('项目已删除')
+                      setTimeout(() => setMessage(''), 3000)
+                    }}
+                  >
+                    <button className="btn btn-danger btn-small">删除</button>
+                  </ConfirmDialog>
+                )}
               </div>
             ),
           },
@@ -131,11 +142,13 @@ export default function ProjectListPage() {
       {projects.length === 0 && !loading && (
         <EmptyState
           title="还没有采访项目"
-          description="创建一个口述历史采访项目，开始记录受访者的故事"
+          description={canCreate ? '创建一个口述历史采访项目，开始记录受访者的故事' : '当前还没有可见的采访项目'}
           action={
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-              新建采访项目
-            </button>
+            canCreate ? (
+              <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+                新建采访项目
+              </button>
+            ) : undefined
           }
         />
       )}

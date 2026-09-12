@@ -36,13 +36,8 @@ func NewUserService(userRepo repository.UserRepository, cfg *config.Config, logg
 }
 
 func (s *userService) Register(req *dto.RegisterRequest) (*model.User, error) {
-	role := req.Role
-	if role == "" {
-		role = constants.RoleInterviewer
-	}
-	if !constants.ValidRoles(role) {
-		return nil, util.NewAppError(constants.CodeValidation, fmt.Sprintf("用户角色 %s 不合法", role), nil)
-	}
+	// 公开注册一律成为采访员，角色调整仅允许管理员通过 /users/:id/role 进行。
+	role := constants.RoleInterviewer
 	hash, err := util.HashPassword(req.Password)
 	if err != nil {
 		return nil, util.NewAppError(constants.CodeInternal, "用户密码加密失败", err)

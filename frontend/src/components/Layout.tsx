@@ -27,6 +27,11 @@ export default function Layout() {
             采访工作台
           </NavLink>
           {hasRole(ROLE_ADMIN) && (
+            <NavLink to="/users" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              账号管理
+            </NavLink>
+          )}
+          {hasRole(ROLE_ADMIN) && (
             <NavLink to="/audit" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
               审计日志
             </NavLink>

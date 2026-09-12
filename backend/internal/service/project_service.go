@@ -35,6 +35,10 @@ func NewProjectService(projectRepo repository.ProjectRepository, logger *slog.Lo
 }
 
 func (s *projectService) Create(actor *model.User, req *dto.CreateProjectRequest) (*model.Project, error) {
+	// 建档是采访员职责，档案员只能整理、不能建项目。
+	if err := requireRoles(actor, constants.RoleInterviewer, constants.RoleAdmin); err != nil {
+		return nil, err
+	}
 	status := req.Status
 	if status == "" {
 		status = constants.ProjectStatusDraft
@@ -95,6 +99,15 @@ func (s *projectService) Update(actor *model.User, id uint, req *dto.UpdateProje
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询项目 %d 失败", id), err)
 	}
+	if err := requireRoles(actor, constants.RoleInterviewer, constants.RoleAdmin); err != nil {
+		return nil, err
+	}
+	if err := requireProjectOwner(actor, project); err != nil {
+		return nil, err
+	}
+	if err := requireProjectWritable(project); err != nil {
+		return nil, err
+	}
 	if req.Title != "" {
 		project.Title = req.Title
 	}
@@ -126,6 +139,11 @@ func (s *projectService) TransitionStatus(actor *model.User, id uint, status str
 		}
 		return nil, util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询项目 %d 失败", id), err)
 	}
+	// 状态流转：负责该项目的采访员、档案员（归档整理）或管理员可操作。
+	if actor.Role != constants.RoleAdmin && actor.Role != constants.RoleArchivist && project.CreatedBy != actor.ID {
+		return nil, util.NewAppError(constants.CodeForbidden,
+			fmt.Sprintf("用户 %s 无权流转项目 %d 的状态", actor.Username, id), nil)
+	}
 	if !constants.CanTransitionProject(project.Status, status) {
 		return nil, util.NewAppError(constants.CodeProjectStatus,
 			fmt.Sprintf("项目 %d 状态不允许从 %s 流转到 %s", id, project.Status, status), nil)
@@ -140,11 +158,23 @@ func (s *projectService) TransitionStatus(actor *model.User, id uint, status str
 }
 
 func (s *projectService) Delete(actor *model.User, id uint) error {
-	if _, err := s.projectRepo.FindByID(id); err != nil {
+	project, err := s.projectRepo.FindByID(id)
+	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return util.NewAppError(constants.CodeNotFound, fmt.Sprintf("项目 %d 不存在", id), err)
 		}
 		return util.NewAppError(constants.CodeInternal, fmt.Sprintf("查询项目 %d 失败", id), err)
+	}
+	if err := requireRoles(actor, constants.RoleInterviewer, constants.RoleAdmin); err != nil {
+		return err
+	}
+	if err := requireProjectOwner(actor, project); err != nil {
+		return err
+	}
+	// 已归档项目进入档案库，仅管理员可删除。
+	if project.Status == constants.ProjectStatusArchived && actor.Role != constants.RoleAdmin {
+		return util.NewAppError(constants.CodeProjectStatus,
+			fmt.Sprintf("项目 %d 已归档，仅管理员可删除", id), nil)
 	}
 	if err := s.projectRepo.Delete(id); err != nil {
 		return util.NewAppError(constants.CodeInternal, fmt.Sprintf("删除项目 %d 失败", id), err)

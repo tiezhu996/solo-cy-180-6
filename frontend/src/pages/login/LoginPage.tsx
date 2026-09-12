@@ -66,7 +66,7 @@ export default function LoginPage() {
         <button className="btn btn-primary btn-block" onClick={mode === 'login' ? handleLogin : handleRegister}>
           {mode === 'login' ? '登 录' : '注册并登录'}
         </button>
-        <div className="login-hint">默认管理员：admin / admin123456</div>
+        <div className="login-hint">注册即成为采访员，角色调整由管理员负责 · 默认管理员：admin / admin123456</div>
       </div>
     </div>
   )

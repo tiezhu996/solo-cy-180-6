@@ -31,12 +31,32 @@ docker compose down -v --remove-orphans
 
 ## 主要功能
 
-- 用户注册/登录（JWT 认证 + RBAC 角色：管理员 / 采访员 / 档案员）
+- 用户注册/登录（JWT 认证 + RBAC 角色：管理员 / 采访员 / 档案员）；公开注册一律成为采访员，角色调整仅管理员可操作
 - 采访项目管理：创建、编辑、状态流转（草稿 → 进行中 → 已完成 → 已归档）、删除
 - 采访问题管理：为项目添加问题清单，作为录音提纲
 - 录音管理：浏览器端录音 → 上传 MinIO → 自动关联到对应问题 → 一句话摘要
 - 时间轴：按项目/录音标注关键节点，项目页按时间线展示所有片段并支持播放
+- 账号管理（仅管理员）：查看账号、调整角色、删除账号
 - 操作审计日志（仅管理员）、全局错误处理与请求追踪（request_id）
+
+## 权限矩阵（服务端强制校验，越权返回 403/409）
+
+| 动作 | 采访员 | 档案员 | 管理员 |
+| --- | --- | --- | --- |
+| 注册/登录 | ✔（默认采访员） | ✔ | ✔ |
+| 创建/编辑/删除项目 | 仅自己负责的项目；已归档仅管理员可删 | ✘ | ✔ |
+| 维护采访提纲（问题） | 仅自己负责的项目 | ✘ | ✔ |
+| 录音创建/上传/删除 | 仅自己负责的项目 | ✘ | ✔ |
+| 撰写录音一句话摘要 | ✘ | ✔ | ✔ |
+| 标注/编辑时间轴节点 | ✘ | ✔ | ✔ |
+| 项目状态流转 | 自己负责的项目 | ✔（含归档） | ✔ |
+| 查看项目/问题/录音/节点/回放 | ✔ | ✔ | ✔ |
+| 账号管理、审计日志 | ✘ | ✘ | ✔ |
+
+服务端另外强制两条不变式（违反返回 400/409）：
+
+- **禁止跨项目挂接**：录音的 `question_id` 必须属于请求的项目，节点的 `recording_id` 必须属于请求的项目。
+- **已归档项目只读**：项目归档后，改资料、加问题、建录音、改摘要、加节点、删问题、状态流转一律返回 409。
 
 ## 技术栈
 
@@ -76,7 +96,7 @@ cy-180/
 │   ├── src/
 │   │   ├── api/                    # 每个实体一个 API 文件（auth/project/question/recording/timelineMarker/audit/user）
 │   │   ├── components/             # StatusBadge/EmptyState/ConfirmDialog/DataTable/AudioPlayer/ProjectForm/Layout
-│   │   ├── pages/                  # login/projects/interview/audit 页面目录
+│   │   ├── pages/                  # login/projects/interview/users/audit 页面目录
 │   │   ├── stores/                 # 按实体拆分（auth/project/question/recording/timeline）
 │   │   ├── hooks/                  # useAuth/usePagination
 │   │   ├── utils/                  # request.ts（拦截器）/format.ts
@@ -133,36 +153,36 @@ npm run dev                # 默认 http://localhost:5173，/api 代理到 http:
 | 方法 | 路径 | 说明 | 权限 |
 | --- | --- | --- | --- |
 | GET | /healthz | 健康检查 | 公开 |
-| POST | /api/v1/auth/register | 注册 | 公开 |
+| POST | /api/v1/auth/register | 注册（固定为采访员） | 公开 |
 | POST | /api/v1/auth/login | 登录 | 公开 |
 | GET | /api/v1/auth/me | 当前用户 | 登录 |
 | GET | /api/v1/users | 用户列表 | 管理员 |
 | PUT | /api/v1/users/:id/role | 更新用户角色 | 管理员 |
 | DELETE | /api/v1/users/:id | 删除用户 | 管理员 |
 | GET | /api/v1/projects | 项目列表（status 筛选） | 登录 |
-| POST | /api/v1/projects | 创建项目 | 登录 |
+| POST | /api/v1/projects | 创建项目 | 采访员/管理员 |
 | GET | /api/v1/projects/mine | 我的项目 | 登录 |
 | GET | /api/v1/projects/stats | 项目统计 | 登录 |
 | GET | /api/v1/projects/:id | 项目详情 | 登录 |
-| PUT | /api/v1/projects/:id | 更新项目 | 登录 |
-| PUT | /api/v1/projects/:id/status | 项目状态流转 | 登录 |
-| DELETE | /api/v1/projects/:id | 删除项目 | 登录 |
+| PUT | /api/v1/projects/:id | 更新项目 | 负责采访员/管理员，归档后拒绝 |
+| PUT | /api/v1/projects/:id/status | 项目状态流转 | 负责采访员/档案员/管理员 |
+| DELETE | /api/v1/projects/:id | 删除项目 | 负责采访员/管理员，归档后仅管理员 |
 | GET | /api/v1/projects/:id/questions | 问题列表 | 登录 |
-| POST | /api/v1/projects/:id/questions | 添加问题 | 登录 |
-| PUT | /api/v1/questions/:id | 更新问题 | 登录 |
-| DELETE | /api/v1/questions/:id | 删除问题 | 登录 |
+| POST | /api/v1/projects/:id/questions | 添加问题 | 负责采访员/管理员，归档后拒绝 |
+| PUT | /api/v1/questions/:id | 更新问题 | 负责采访员/管理员，归档后拒绝 |
+| DELETE | /api/v1/questions/:id | 删除问题 | 负责采访员/管理员，归档后拒绝 |
 | GET | /api/v1/recordings?project_id= 或 ?question_id= | 录音列表（复用 RecordingService.List） | 登录 |
-| POST | /api/v1/recordings | 创建录音记录 | 登录 |
+| POST | /api/v1/recordings | 创建录音记录（问题须属于该项目） | 负责采访员/管理员，归档后拒绝 |
 | GET | /api/v1/recordings/:id | 录音详情 | 登录 |
-| PUT | /api/v1/recordings/:id | 更新录音 | 登录 |
-| PUT | /api/v1/recordings/:id/summary | 更新一句话摘要 | 登录 |
-| POST | /api/v1/recordings/:id/audio | 上传录音（multipart） | 登录 |
+| PUT | /api/v1/recordings/:id | 更新录音 | 负责采访员/管理员，归档后拒绝 |
+| PUT | /api/v1/recordings/:id/summary | 更新一句话摘要 | 档案员/管理员，归档后拒绝 |
+| POST | /api/v1/recordings/:id/audio | 上传录音（multipart） | 负责采访员/管理员，归档后拒绝 |
 | GET | /api/v1/recordings/:id/audio | 播放音频流 | 登录 |
-| DELETE | /api/v1/recordings/:id | 删除录音 | 登录 |
+| DELETE | /api/v1/recordings/:id | 删除录音 | 负责采访员/管理员，归档后拒绝 |
 | GET | /api/v1/timeline-markers?project_id= 或 ?recording_id= | 时间轴节点（复用 TimelineMarkerService.List） | 登录 |
-| POST | /api/v1/timeline-markers | 标注节点 | 登录 |
-| PUT | /api/v1/timeline-markers/:id | 更新节点 | 登录 |
-| DELETE | /api/v1/timeline-markers/:id | 删除节点 | 登录 |
+| POST | /api/v1/timeline-markers | 标注节点（录音须属于该项目） | 档案员/管理员，归档后拒绝 |
+| PUT | /api/v1/timeline-markers/:id | 更新节点 | 档案员/管理员，归档后拒绝 |
+| DELETE | /api/v1/timeline-markers/:id | 删除节点 | 档案员/管理员，归档后拒绝 |
 | GET | /api/v1/audit-logs | 审计日志 | 管理员 |
 
 复用关系说明：`GET /api/v1/recordings?project_id=` 与 `GET /api/v1/recordings?question_id=` 复用 `RecordingService.List`；`GET /api/v1/timeline-markers?project_id=` 与 `GET /api/v1/timeline-markers?recording_id=` 复用 `TimelineMarkerService.List`；前端 `ProjectForm` 组件在项目列表页与项目详情页复用，`StatusBadge` / `AudioPlayer` 在多个页面复用。
@@ -282,6 +302,19 @@ curl -sS "http://localhost:9180/api/v1/audit-logs?page=1&page_size=10" -H "Autho
 - `frontend/src/pages/projects/ProjectDetailPage.tsx`（时间线状态展示）
 - `frontend/src/pages/interview/InterviewPage.tsx`（录音面板状态展示）
 - `frontend/src/api/types.ts`（RecordingStatus 类型）
+
+## 端到端验证
+
+仓库内置三角色全链路验证脚本 `scripts/e2e-verify.mjs`（Node ≥ 18，无需安装依赖）：
+
+```bash
+# 后端运行在 9180 端口后执行
+node scripts/e2e-verify.mjs
+# 或指定其他后端地址
+node scripts/e2e-verify.mjs http://localhost:9180/api/v1
+```
+
+脚本覆盖：公开注册固定采访员、注册提权被拒、管理员调整角色、采访员建档/提纲/录音上传、录音自动关联问题、档案员摘要/节点/归档、管理员账号与审计查看，以及全部拒绝路径（越权 403、跨项目挂接 400、已归档写入 409、未认证 401）、时间轴顺序与音频回放字节一致性。共 51 项断言，全部通过时退出码为 0。
 
 ## Docker 部署说明
 
