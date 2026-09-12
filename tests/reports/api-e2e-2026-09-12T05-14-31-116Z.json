@@ -1,0 +1,411 @@
+{
+  "name": "api-e2e",
+  "ok": true,
+  "startedAt": "2026-09-12T05:14:31.116Z",
+  "finishedAt": "2026-09-12T05:14:32.744Z",
+  "total": 80,
+  "passed": 80,
+  "failed": 0,
+  "results": [
+    {
+      "name": "服务健康检查 db=true",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "公开注册成功且默认角色为采访员",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "注册携带 role=admin 仍落为采访员",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "重复用户名注册被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "正确口令登录成功并签发 JWT",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "默认管理员可登录",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "错误密码登录被拒(401)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "不存在用户登录被拒(401)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "携带 JWT 访问 /auth/me 返回本人",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "未认证访问 /auth/me 被拒(401)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "管理员查看账号列表",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员查看账号列表被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员调整他人角色被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "调整为非法角色被拒(400)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "管理员将用户调整为档案员",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "角色调整后重新登录生效",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "删除管理员账号被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "非管理员删除账号被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员甲建档成功（受访者/出生年份/背景）",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员乙建自己的项目",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员建档被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙修改甲的项目被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙删除甲的项目被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙流转甲的项目状态被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "甲的 mine 列表只含甲的项目",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "负责人更新自己项目资料",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "查询不存在项目返回 404",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "草稿直接到已完成被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "非法状态值被拒(400)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "草稿 → 进行中 允许",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "进行中回退草稿被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙的项目正常进入采访",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "负责人在自己项目添加 3 个提纲问题",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员添加问题被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "非负责人添加问题被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙在自己项目添加问题",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "提纲按 sort_order 返回且归属本项目",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙修改甲项目问题被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "乙删除甲项目问题被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "问题1 录音创建并上传音频成功",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "录音自动关联对应问题并写入 audio_key",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "同问题第二段与问题2 录音完成",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "录音挂到别的项目的问题被拒(400)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员创建录音被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "非负责人创建录音被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "按问题查询只返回该问题的录音",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "项目片段按时间顺序（创建先后）排列",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "无音频的录音回放返回 404",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员撰写一句话摘要",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员写摘要被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "管理员可写摘要",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员标注 3 个时间轴节点",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "0 秒处节点允许标注",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员标注节点被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "节点挂到别的项目的录音被拒(400)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员修订节点",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员修订节点被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员删除节点被拒(403)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员删除节点",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "节点按时间戳排序且归属正确录音",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员标记项目完成",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员归档项目",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后改项目资料被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后加问题被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后建录音被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后改摘要被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后加节点被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后状态流转被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后删问题被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后删录音被拒(409)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档项目仍可读取（详情/提纲/片段/节点）",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档项目录音仍可回放(200)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "回放字节与上传完全一致",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "回放携带音频 Content-Type",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "未认证回放被拒(401)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "未认证建档被拒(401)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "未认证查列表被拒(401)",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "审计覆盖采访员建档/状态/上传",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "审计覆盖档案员摘要/节点/归档",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员查看审计日志被拒(403)",
+      "pass": true,
+      "extra": ""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "oralhistory-tests",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "口述历史采集工具自动化测试（接口 + 浏览器）",
+  "scripts": {
+    "test": "npm run test:api && npm run test:browser",
+    "test:api": "node api/api.e2e.mjs",
+    "test:browser": "node browser/roles.e2e.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.49.1"
+  }
+}

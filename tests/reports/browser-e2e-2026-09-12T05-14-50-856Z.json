@@ -1,0 +1,136 @@
+{
+  "name": "browser-e2e",
+  "ok": true,
+  "startedAt": "2026-09-12T05:14:50.856Z",
+  "finishedAt": "2026-09-12T05:14:57.836Z",
+  "total": 25,
+  "passed": 25,
+  "failed": 0,
+  "results": [
+    {
+      "name": "登录页渲染",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "注册后自动登录且角色为采访员",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员导航无账号管理/审计入口",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "项目列表出现新项目",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "详情页展示受访者资料",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "项目状态流转为进行中",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "提纲问题添加成功",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "采访员看不到摘要编辑框",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "浏览器录音上传并关联到问题",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "录音面板出现播放器",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员账号经管理员提权就绪",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "档案员看不到新建项目按钮",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "详情页时间线展示片段",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "片段带播放器可回放",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "摘要保存并展示在时间线",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "时间轴节点标注成功",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "项目归档完成",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后不再显示添加问题表单",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "归档后不再显示节点标注表单",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "管理员导航含账号管理与审计日志",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "账号列表展示新注册用户",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "角色下拉可调整",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "审计日志含建档/录音/摘要/节点记录",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "时间线展示采访片段",
+      "pass": true,
+      "extra": ""
+    },
+    {
+      "name": "点击播放后音频进度推进",
+      "pass": true,
+      "extra": ""
+    }
+  ]
+}

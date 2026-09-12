@@ -105,6 +105,7 @@ cy-180/
 │   ├── Dockerfile                  # 前端多阶段构建 + Nginx 托管
 │   └── nginx.conf                  # 前端路由 + /api 反向代理
 ├── database/init.sql               # 数据库初始化脚本
+├── tests/                          # 自动化测试（api/ 接口、browser/ 浏览器、helpers/、reports/）
 ├── docker-compose.yml
 ├── .env / .env.example
 ├── output/execution.md             # 执行验证报告
@@ -305,16 +306,19 @@ curl -sS "http://localhost:9180/api/v1/audit-logs?page=1&page_size=10" -H "Autho
 
 ## 端到端验证
 
-仓库内置三角色全链路验证脚本 `scripts/e2e-verify.mjs`（Node ≥ 18，无需安装依赖）：
+自动化测试位于 `tests/`（详见 `tests/README.md`）：
 
 ```bash
-# 后端运行在 9180 端口后执行
-node scripts/e2e-verify.mjs
-# 或指定其他后端地址
-node scripts/e2e-verify.mjs http://localhost:9180/api/v1
+# 接口测试（Node ≥ 18，零依赖；覆盖正常流程与越权/跨项目/非法流转失败路径）
+node tests/api/api.e2e.mjs
+
+# 浏览器测试（headless Chromium 走通三种角色并检查录音播放）
+cd tests && npm install && npm run test:browser
 ```
 
-脚本覆盖：公开注册固定采访员、注册提权被拒、管理员调整角色、采访员建档/提纲/录音上传、录音自动关联问题、档案员摘要/节点/归档、管理员账号与审计查看，以及全部拒绝路径（越权 403、跨项目挂接 400、已归档写入 409、未认证 401）、时间轴顺序与音频回放字节一致性。共 51 项断言，全部通过时退出码为 0。
+- 覆盖：登录、角色调整、项目负责人隔离、提纲与录音归属、摘要与节点权限、归档只读、录音回放
+- 每次运行生成随机后缀的测试数据，可重复执行；断言报告写入 `tests/reports/`
+- 当前结果：接口 80/80 通过，浏览器 25/25 通过
 
 ## Docker 部署说明
 
